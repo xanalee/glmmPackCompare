@@ -1,0 +1,6 @@
+{
+  "n": [100],
+  "M": [3],
+  "re_dist": ["Poisson"],
+  "with_rd_slope": [false]
+}

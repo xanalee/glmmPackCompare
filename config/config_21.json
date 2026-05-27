@@ -1,0 +1,6 @@
+{
+  "n": [200],
+  "M": [3],
+  "re_dist": ["Bernoulli"],
+  "with_rd_slope": [true]
+}
