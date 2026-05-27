@@ -3,6 +3,9 @@ library(GLMMadaptive)
 library(glmmTMB)
 library(MASS)
 library(hglm)
+library(brms)
+library(rstanarm)
+library(loo)
 library(jsonlite)
 
 source(file.path('helpers/estimation_tool.R'))
@@ -19,7 +22,8 @@ n_sim = length(simulate_data_ls)
 
 # Create/Load results
 res_path = sprintf('results/%s.RData', comb)
-pack_v = c('lme4_LA', 'lme4_AGQ', 'GLMMadaptive', 'glmmTMB', 'MASS', 'hglm')
+pack_v = c('lme4_LA', 'lme4_AGQ', 'GLMMadaptive', 'glmmTMB', 'MASS', 'hglm',
+           if (! config$with_rd_slope) 'brms', 'rstanarm')
 result_v = c('conv_status', 'compute_time', 'beta0_hat', 'beta1_hat',
              'beta2_hat', 'beta3_hat', 'tau0_hat',
              if (config$with_rd_slope) c('tau1_hat', 'rho01_hat'),
@@ -36,7 +40,6 @@ if (!file.exists(res_path)) {
 load(res_path)
 
 # Estimate
-
 for (pack in pack_v){
   for (i in 1:n_sim){
     cat(sprintf('Fitting GLMM on dataset %s by %s...\n', i, pack))

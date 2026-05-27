@@ -27,6 +27,11 @@ get_p_value = function(model, term) {
   stop('Unknown model class – cannot extract p-value.')
 }
 
+check_CI = function(model, term) {
+    CI = posterior_interval(model, prob = 0.95)
+    !((CI[term, '2.5%'] < 0) & (CI[term, '97.5%'] > 0))
+  }
+
 check_convergence = function(model, ...) {
   if (inherits(model, 'try-error')) return('error')
 
@@ -60,6 +65,29 @@ check_convergence = function(model, ...) {
   # hglm
   if (inherits(model, 'hglm')) {
     if (model$Converge != 'converged') return('official_fail')
+    return('good')
+  }
+
+  # brms
+  if (inherits(model, 'brmsfit')){
+    n_term = list(...)$n_term
+    if (is.null(n_term)) stop('For brms models, provide n_term = number of parameters need to be estimated.')
+    Rhat = rhat(model)
+    if (any(abs(Rhat[1:n_term] - 1) >= 0.1)) return('official_fail')
+    return('good')
+  }
+
+  # rstanarm
+  if (inherits(model, 'stanreg')){
+    fixed_names = list(...)$fixed_names
+    if (is.null(fixed_names)) stop("For rstanarm models, provide fixed_names = c('time', 'group', ...).")
+    summ = summary(model)
+    if (any(! fixed_names %in% row.names(summ))) return('error')
+    with_rd_slope = list(...)$with_rd_slope
+    if (is.null(with_rd_slope)) stop("For rstanarm models, provide with_rd_slope = if the model includes random slope.")
+    random_names = c('Sigma[id:(Intercept),(Intercept)]',
+                     if (config$with_rd_slope) c('Sigma[id:time,(Intercept)]', 'Sigma[id:time,time]'))
+    if (any(abs(summ[c(fixed_names, random_names), 'Rhat'] - 1) >= 0.1)) return('official_fail')
     return('good')
   }
 
@@ -415,23 +443,14 @@ est_hglm = function(data, resp_dist, with_rd_slope){
   }
 
   # Fit full model on full dataset
-  warning_list = list()
   compute_time = system.time({
     model_full = try(
-      withCallingHandlers(
-        expr = {
-          hglm2(meanmodel = build_formula('y_full', 'time + group + time:group', rd_term),
-                family = fami,
-                rand.family = gaussian(link = identity),
-                data = data)
-        },
-        warning = function(w) {
-          warning_list <<- append(warning_list, w$message)
-          invokeRestart('muffleWarning')
-        }
-      )
+      hglm2(meanmodel = build_formula('y_full', 'time + group + time:group', rd_term),
+            family = fami,
+            rand.family = gaussian(link = identity),
+            data = data)
     )})[['elapsed']]
-  conv_status = check_convergence(model_full, warning_list)
+  conv_status = check_convergence(model_full)
 
   if (conv_status == 'good'){
 
@@ -452,23 +471,231 @@ est_hglm = function(data, resp_dist, with_rd_slope){
     power_hat_uni = get_p_value(model_full, 'time:group')
 
     # Fit full model on dataset with beta3 = 0
-    warning_list = list()
     model_uni = try(
-      withCallingHandlers(expr = {
-        hglm2(meanmodel = build_formula('y_0', 'time + group + time:group', rd_term),
-              family = fami,
-              rand.family = gaussian(link = identity),
-              data = data
-        )},
-        warning = function(w) {
-          warning_list <<- append(warning_list, w$message)
-          invokeRestart('muffleWarning')
-        })
+      hglm2(meanmodel = build_formula('y_0', 'time + group + time:group', rd_term),
+            family = fami,
+            rand.family = gaussian(link = identity),
+            data = data
+        )
     )
     if (check_convergence(model_uni, warning_list) == 'good'){
       # Calculate empirical alpha of univariate test (Wald)
       alpha_hat_uni = get_p_value(model_uni, 'time:group')
     }
+  }
+  # Save results
+  result_names = c('compute_time', 'conv_status', 'beta0_hat', 'beta1_hat',
+                   'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
+                   'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
+                   'power_hat_mult')
+  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  return(result)
+}
+
+est_brms = function(data, resp_dist, with_rd_slope, n_cores = 4, n_threads = 6){
+
+  # Specify random effects
+  rd_term = if (with_rd_slope) '(1 + time | id)' else '(1|id)'
+
+  # Specify response distribution
+  if (resp_dist == 'Bernoulli'){
+    fami = bernoulli(link = 'logit')
+  }
+  if (resp_dist == 'Poisson'){
+    fami = poisson(link = 'log')
+  }
+
+  # Fit full model on full dataset
+  compute_time = system.time({
+    model_full = try(brm(build_formula('y_full', 'time + group + time:group', rd_term),
+                         family = fami,
+                         data = data,
+                         threads = threading(n_threads),
+                         cores = n_cores,
+                         seed = 123
+    ))})[['elapsed']]
+
+  conv_status = check_convergence(model_full, n_term = 5)
+
+  if (conv_status == 'good'){
+
+    # Record betas and tau after fitting full model on full dataset
+    summ = summary(model_full)
+    beta0_hat = summ$fixed['Intercept', 'Estimate']
+    beta1_hat = summ$fixed['time', 'Estimate']
+    beta2_hat = summ$fixed['group', 'Estimate']
+    beta3_hat = summ$fixed['time:group', 'Estimate']
+    if (with_rd_slope){
+      tau0_hat = summ$random$id['sd(Intercept)', 'Estimate']
+      tau1_hat = summ$random$id['sd(time)', 'Estimate']
+      rho01_hat = summ$random$id['cor(Intercept,time)', 'Estimate']
+    } else {
+      tau_hat = summ$random$id['sd(Intercept)', 'Estimate']
+    }
+    # Calculate empirical power of univariate test (CI)
+    power_hat_uni = check_CI(model_full, 'b_time:group')
+
+    # Fit null model on full dataset
+    null_model_full = try(brm(build_formula('y_full', 'time', rd_term),
+                              family = fami,
+                              data = data,
+                              threads = threading(n_threads),
+                              cores = n_cores,
+                              seed = 123
+    ))
+    if (check_convergence(null_model_full, n_term = 3) == 'good'){
+
+      # Calculate empirical power of multivariate test (LOOIC)
+      null_loo = loo(null_model_full)
+      alt_loo = loo(model_full)
+      power_hat_mult = null_loo$estimates['looic', 'Estimate'] > alt_loo$estimates['looic', 'Estimate']
+    }
+    rm(model_full, null_model_full)
+
+    # Fit full model on dataset with beta3 = 0
+    model_uni = try(brm(build_formula('y_0', 'time + group + time:group', rd_term),
+                        family = fami,
+                        data = data,
+                        threads = threading(n_threads),
+                        cores = n_cores,
+                        seed = 123
+    ))
+    if (check_convergence(model_uni, n_term = 5) == 'good'){
+
+      # Calculate empirical alpha of univariate test (CI)
+      alpha_hat_uni = check_CI(model_uni, 'b_time:group')
+    }
+    rm(model_uni)
+
+    # Fit full model on dataset with beta2 = beta3 = 0
+    model_mult = try(brm(build_formula('y_00', 'time + group + time:group', rd_term),
+                         family = fami,
+                         data = data,
+                         threads = threading(n_threads),
+                         cores = n_cores,
+                         seed = 123
+    ))
+    if (check_convergence(model_mult, n_term = 5) == 'good'){
+
+      # Fit null model on dataset with beta2 = beta3 = 0
+      null_model_mult = try(brm(build_formula('y_00', 'time', rd_term),
+                                family = fami,
+                                data = data,
+                                threads = threading(n_threads),
+                                cores = n_cores,
+                                seed = 123
+      ))
+      if (check_convergence(null_model_mult, n_term = 3) == 'good') {
+
+        # Calculate empirical alpha of multivariate test (LOOIC)
+        null_loo = loo(null_model_mult)
+        alt_loo = loo(model_mult)
+        alpha_hat_mult = null_loo$estimates['looic', 'Estimate'] > alt_loo$estimates['looic', 'Estimate']
+      }
+      rm(null_model_mult)
+    }
+    rm(model_mult)
+  }
+  # Save results
+  result_names = c('compute_time', 'conv_status', 'beta0_hat', 'beta1_hat',
+                   'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
+                   'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
+                   'power_hat_mult')
+  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  return(result)
+}
+
+est_rstanarm = function(data, resp_dist, with_rd_slope, n_cores = 4){
+
+  # Specify random effects
+  rd_term = if (with_rd_slope) '(1 + time | id)' else '(1 | id)'
+
+  # Specify response distribution
+  if (resp_dist == 'Bernoulli'){
+    fami = binomial(link = 'logit')
+  }
+  if (resp_dist == 'Poisson'){
+    fami = poisson(link = 'log')
+  }
+
+  # Fit full model on full dataset
+  compute_time = system.time({
+    model_full = try(stan_glmer(build_formula('y_full', 'time + group + time:group', rd_term),
+                                family = fami,
+                                data = data,
+                                cores = n_cores,
+                                seed = 123
+    ))})[['elapsed']]
+
+  conv_status = check_convergence(model_full, fixed_names = c('time', 'group', 'time:group'), with_rd_slope = with_rd_slope)
+
+  if (conv_status == 'good'){
+
+    # Record betas and tau after fitting full model on full dataset
+    beta0_hat = model_full$coefficients[['(Intercept)']]
+    beta1_hat = model_full$coefficients[['time']]
+    beta2_hat = model_full$coefficients[['group']]
+    beta3_hat = model_full$coefficients[['time:group']]
+    if (with_rd_slope){
+      tau0_hat = attr(VarCorr(model_full)$id,'stddev')[['(Intercept)']]
+      tau1_hat = attr(VarCorr(model_full)$id,'stddev')[['time']]
+      rho01_hat = attr(VarCorr(model_full)$id,'correlation')['(Intercept)', 'time']
+    } else {
+      tau_hat = as.numeric(attr(VarCorr(model_full)$id,'stddev'))
+    }
+    # Calculate empirical power of univariate test (CI)
+    power_hat_uni = check_CI(model_full, 'time:group')
+
+    # Fit null model on full dataset
+    null_model_full = try(stan_glmer(build_formula('y_full', 'time', rd_term),
+                                     family = fami,
+                                     data = data,
+                                     cores = n_cores,
+                                     seed = 123
+    ))
+    if (check_convergence(null_model_full, fixed_names = c('time'), with_rd_slope = with_rd_slope) == 'good'){
+      # Calculate empirical power of multivariate test (LOOIC)
+      null_loo = loo(null_model_full)
+      alt_loo = loo(model_full)
+      power_hat_mult = null_loo$estimates['looic', 'Estimate'] > alt_loo$estimates['looic', 'Estimate']
+    }
+    rm(model_full, null_model_full)
+
+    # Fit full model on dataset with beta3 = 0
+    model_uni = try(stan_glmer(build_formula('y_0', 'time + group + time:group', rd_term),
+                               family = fami,
+                               data = data,
+                               cores = n_cores,
+                               seed = 123
+    ))
+    if (check_convergence(model_uni, fixed_names = c('time', 'group', 'time:group'), with_rd_slope = with_rd_slope) == 'good') {
+      # Calculate empirical alpha of univariate test (CI)
+      alpha_hat_uni = check_CI(model_uni, 'time:group')
+    }
+    rm(model_uni)
+    # Fit full model on dataset with beta2 = beta3 = 0
+    model_mult = try(stan_glmer(build_formula('y_00', 'time + group + time:group', rd_term),
+                                family = fami,
+                                data = data,
+                                cores = n_cores,
+                                seed = 123
+    ))
+    if (check_convergence(model_mult, fixed_names = c('time', 'group', 'time:group'), with_rd_slope = with_rd_slope) == 'good'){
+      # Fit null model on dataset with beta2 = beta3 = 0
+      null_model_mult = try(stan_glmer(build_formula('y_00', 'time', rd_term),
+                                       family = fami,
+                                       data = data,
+                                       cores = n_cores,
+                                       seed = 123
+      ))
+      if (check_convergence(null_model_mult, fixed_names = c('time'), with_rd_slope = with_rd_slope) == 'good'){
+        # Calculate empirical alpha of multivariate test (LRT)
+        null_loo = loo(null_model_mult)
+        alt_loo = loo(model_mult)
+        alpha_hat_mult = null_loo$estimates['looic', 'Estimate'] > alt_loo$estimates['looic', 'Estimate']
+      }
+    }
+    rm(model_mult, null_model_mult)
   }
   # Save results
   result_names = c('compute_time', 'conv_status', 'beta0_hat', 'beta1_hat',
