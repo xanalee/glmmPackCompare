@@ -95,6 +95,10 @@ check_convergence = function(model, ...) {
 }
 
 est_lme4 = function(data, resp_dist, with_rd_slope, nAGQ){
+  if (with_rd_slope & (nAGQ > 1)){
+    cat("lme4 doesn't support multi-dimentional random effects when choosing AGQ as the estimation method.\n")
+    return(NA)
+  }
 
   # Specify random effects
   rd_term = if (with_rd_slope) '(1 + time|id)' else '(1|id)'
