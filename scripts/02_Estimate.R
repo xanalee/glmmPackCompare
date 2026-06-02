@@ -8,7 +8,8 @@ library(rstanarm)
 library(loo)
 library(jsonlite)
 
-source(file.path('helpers/estimation_tool.R'))
+source(file.path(sprintf('%shelpers/estimation_tool.R', path)))
+path = ''
 
 # Read config file
 c = 10
@@ -17,11 +18,11 @@ comb = sprintf('n%s_M%s_%s_%s', config$n, config$M, config$re_dist,
                ifelse(config$with_rd_slope, 'rdis', 'rdi'))
 
 # Load datasets
-load(sprintf('data/%s.RData', comb))
 n_sim = length(simulate_data_ls)
+load(sprintf('%sdata/%s.RData', path, comb))
 
 # Create/Load results
-res_path = sprintf('results/%s.RData', comb)
+res_path = sprintf('%sresults/%s.RData', path, comb)
 pack_v = c('lme4_LA', 'lme4_AGQ', 'GLMMadaptive', 'glmmTMB', 'MASS', 'hglm',
            if (! config$with_rd_slope) 'brms', 'rstanarm')
 result_v = c('conv_status', 'compute_time', 'beta0_hat', 'beta1_hat',
@@ -47,7 +48,7 @@ for (pack in pack_v){
       data = simulate_data_ls[[i]], resp_dist = config$re_dist, with_rd_slope = config$with_rd_slope)
     for (result in result_v){
       result_df = get(sprintf('%s_df', result))
-      result_df[i, pack] = pack_result[result]
+      result_df[i, pack] = ifelse(is.list(pack_result), pack_result[[result]], NA)
       assign(sprintf('%s_df', result), result_df)
     }
     if (i %% 10 == 0){

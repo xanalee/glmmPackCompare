@@ -181,7 +181,7 @@ est_lme4 = function(data, resp_dist, with_rd_slope, nAGQ){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
 
@@ -277,7 +277,7 @@ est_GLMMadaptive = function(data, resp_dist, with_rd_slope){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
 
@@ -365,7 +365,7 @@ est_glmmTMB = function(data, resp_dist, with_rd_slope){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
 
@@ -429,7 +429,7 @@ est_MASS = function(data, resp_dist, with_rd_slope){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
 
@@ -492,7 +492,7 @@ est_hglm = function(data, resp_dist, with_rd_slope){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
 
@@ -605,7 +605,7 @@ est_brms = function(data, resp_dist, with_rd_slope, n_cores = 4, n_threads = 6){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
 
@@ -706,6 +706,6 @@ est_rstanarm = function(data, resp_dist, with_rd_slope, n_cores = 4){
                    'beta2_hat', 'beta3_hat', 'tau0_hat', 'tau1_hat', 'rho01_hat',
                    'alpha_hat_uni', 'alpha_hat_mult', 'power_hat_uni',
                    'power_hat_mult')
-  result = unlist(mget(result_names, ifnotfound = list(NA), inherits = FALSE))
+  result = mget(result_names, ifnotfound = list(NA), inherits = FALSE)
   return(result)
 }
