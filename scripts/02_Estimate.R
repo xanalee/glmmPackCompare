@@ -8,21 +8,20 @@ library(rstanarm)
 library(loo)
 library(jsonlite)
 
-source(file.path(sprintf('%shelpers/estimation_tool.R', path)))
-path = ''
+source('helpers/estimation_tool.R')
 
 # Read config file
-c = 10
+c = 15
 config = fromJSON(sprintf('config/config_%s.json', c))
 comb = sprintf('n%s_M%s_%s_%s', config$n, config$M, config$re_dist,
                ifelse(config$with_rd_slope, 'rdis', 'rdi'))
 
 # Load datasets
-n_sim = length(simulate_data_ls)
-load(sprintf('%sdata/%s.RData', path, comb))
+load(sprintf('data/%s.RData', comb))
+n_sim = 10
 
 # Create/Load results
-res_path = sprintf('%sresults/%s.RData', path, comb)
+res_path = sprintf('results/%s.RData', comb)
 pack_v = c('lme4_LA', 'lme4_AGQ', 'GLMMadaptive', 'glmmTMB', 'MASS', 'hglm',
            if (! config$with_rd_slope) 'brms', 'rstanarm')
 result_v = c('conv_status', 'compute_time', 'beta0_hat', 'beta1_hat',

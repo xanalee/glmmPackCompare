@@ -1,7 +1,7 @@
 library(MASS)
 library(jsonlite)
 
-source(file.path('helpers/data_generate_tool.R'))
+source('helpers/data_generate_tool.R')
 
 set.seed(126) # for reproducibility
 
