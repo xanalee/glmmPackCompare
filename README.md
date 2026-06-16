@@ -1,6 +1,7 @@
 # glmmPackCompare
 
-This repository contains R scripts for the paper "A Comparative Study of Estimation Techniques for Generalized Linear Mixed Models".
+This repository contains R scripts for the paper "A Comparison of `R` Packages for Estimating Generalized Linear Mixed Models". 
+The preprint link is https://arxiv.org/abs/2606.15933.
 
 ## Environmental requirements
 `R` (>=4.0) with the following packages: `lme4`, `GLMMadaptive`, `glmmTMB`, `MASS`, `hglm`, `brms`, `rstanarm`, `loo`, `jsonlite`.
