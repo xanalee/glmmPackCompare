@@ -82,12 +82,14 @@ mean_df = final_result_df[, c('Packages', 'Mean.beta0_hat', 'Mean.beta1_hat',
                               'Mean.beta2_hat', 'Mean.beta3_hat', 'Mean.tau0_hat',
                               'Mean.tau1_hat', 'Mean.rho01_hat')]
 mean_df[, 2:8] = abs(sweep(mean_df[, 2:8], 2, c(true_beta_v, true_variance_com_v), '-'))
-mean_abs_bias_df = aggregate(mean_df[-1], by = list(Group = mean_df[[1]]), FUN = mean)
+mean_abs_bias_df = aggregate(mean_df[-1], by = list(Group = mean_df[[1]]), FUN = mean, na.rm = TRUE)
+# write.csv(mean_abs_bias_df, 'mean_abs_bias_df.csv', row.names = FALSE)
 
 # Mean RMSE
 rmse_df = final_result_df[, c('Packages', 'RMSE.beta0_hat', 'RMSE.beta1_hat',
                               'RMSE.beta2_hat', 'RMSE.beta3_hat', 'RMSE.tau0_hat',
                               'RMSE.tau1_hat', 'RMSE.rho01_hat')]
-mean_rmse_df = aggregate(rmse_df[-1], by = list(Group = rmse_df[[1]]), FUN = mean)
+mean_rmse_df = aggregate(rmse_df[-1], by = list(Group = rmse_df[[1]]), FUN = mean, na.rm = TRUE)
+# write.csv(mean_rmse_df, 'mean_rmse_df.csv', row.names = FALSE)
 
 save(list = c('final_result_df', 'mean_abs_bias_df', 'mean_rmse_df'), file = 'results/final.RData')
